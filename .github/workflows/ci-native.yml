@@ -1,0 +1,48 @@
+name: CI Native Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov flake8
+
+    - name: Initialize SQLite database (if needed)
+      run: |
+        # Если приложение использует файл базы данных, его можно создать здесь.
+        # Пример: python -c "from app import db; db.create_all()"
+        echo "Database initialization step (optional)"
+
+    - name: Run unit, integration and e2e tests
+      run: |
+        pytest -v tests/ --cov=app --cov-report=term-missing --cov-fail-under=80
+
+    - name: Smoke test Flask server
+      run: |
+        # Запускаем Flask-приложение в фоне
+        python run.py &
+        SERVER_PID=$!
+        # Даём серверу время на запуск
+        sleep 5
+        # Выполняем запрос к эндпоинту здоровья (или главной странице)
+        curl --fail http://127.0.0.1:5000/health || curl --fail http://127.0.0.1:5000/
+        # Останавливаем сервер
+        kill $SERVER_PID
